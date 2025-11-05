@@ -1,0 +1,98 @@
+@server = http://localhost:8080
+
+### GET resource
+GET {{server}}/api/resources
+
+### POST create resource
+POST {{server}}/api/resources
+Content-Type: application/json
+
+{
+  "name": "Badminton Court 3",
+  "description": "Badminton court available for booking",
+  "type": "badminton court",
+  "location": "Marathalli",
+  "capacity": 2,
+  "operating_hours": {
+    "open": "06:00",
+    "close": "22:00"
+  }
+}
+
+### GET resource by ID
+GET {{server}}/api/resources/1
+
+### PUT update resource
+# PUT {{server}}/api/resources/bac86672-e620-46e7-9475-8f31ef97b628
+PUT {{server}}/api/resources/a29e5112-7b32-4f1d-b311-fd33b50d8e2d
+Content-Type: application/json
+
+{
+  "name": "Badminton Court 2",
+  "description": "Badminton court available for booking",
+  "type": "badminton court",
+  "location": "Marathalli",
+  "capacity": 2,
+  "operating_hours": {
+    "open": "06:00",
+    "close": "22:00"
+  }
+}
+
+### DELETE resource
+DELETE {{server}}/api/resources/1
+
+# ==================== BOOKING TESTS ====================
+
+### GET user bookings
+GET {{server}}/api/bookings
+
+### POST create booking
+POST {{server}}/api/bookings
+Content-Type: application/json
+
+{
+  "resource_id": "a29e5112-7b32-4f1d-b311-fd33b50d8e2d",
+  "time_slot_id": "f47ac10b-58cc-4372-a567-0e02b2c3d479",
+  "notes": "Test booking for sports court"
+}
+
+### GET booking by ID
+GET {{server}}/api/bookings/f47ac10b-58cc-4372-a567-0e02b2c3d479
+
+### PUT cancel booking
+PUT {{server}}/api/bookings/f47ac10b-58cc-4372-a567-0e02b2c3d479/cancel
+
+### POST check booking conflicts
+POST {{server}}/api/bookings/check-conflicts
+Content-Type: application/json
+
+{
+  "resource_id": "a29e5112-7b32-4f1d-b311-fd33b50d8e2d",
+  "start_time": "2025-11-06T10:00:00Z",
+  "end_time": "2025-11-06T11:00:00Z"
+}
+
+# ==================== AVAILABILITY TESTS ====================
+
+### GET availability for a resource (requires resource_id and date range)
+GET {{server}}/api/availability/a29e5112-7b32-4f1d-b311-fd33b50d8e2d?start_date=2025-11-06T00:00:00Z&end_date=2025-11-07T00:00:00Z
+
+### POST create time slot for a resource
+POST {{server}}/api/availability/a29e5112-7b32-4f1d-b311-fd33b50d8e2d
+Content-Type: application/json
+
+{
+  "start_time": "2025-11-06T10:00:00Z",
+  "end_time": "2025-11-06T11:00:00Z",
+  "capacity": 2,
+  "price": 25.50
+}
+
+### PUT update time slot availability
+PUT {{server}}/api/availability/slot/f47ac10b-58cc-4372-a567-0e02b2c3d479/availability
+Content-Type: application/json
+
+{
+  "is_available": false
+}

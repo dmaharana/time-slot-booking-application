@@ -1,0 +1,6 @@
+tmp/*
+.env
+bin/*
+
+time-slot-booking
+server
