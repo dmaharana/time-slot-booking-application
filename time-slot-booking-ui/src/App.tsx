@@ -6,7 +6,6 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './com
 import { Tabs, TabsContent, TabsList, TabsTrigger } from './components/ui/tabs';
 import { Calendar, Clock, MapPin, Users, DollarSign } from 'lucide-react';
 import { Badge } from './components/ui/badge';
-import { Input } from './components/ui/input';
 import { toast } from './hooks/use-toast';
 import { format, parseISO, addDays, startOfDay } from 'date-fns';
 import BookingModal from './components/BookingModal';
@@ -20,6 +19,7 @@ function App() {
   const [availableSlots, setAvailableSlots] = useState<TimeSlot[]>([]);
   const [myBookings, setMyBookings] = useState<Booking[]>([]);
   const [selectedDate, setSelectedDate] = useState(format(startOfDay(new Date()), 'yyyy-MM-dd\'T\'HH:mm:ssXXX'));
+  const [availableDates, setAvailableDates] = useState<{ date: string; slots: TimeSlot[] }[]>([]);
   const [isBookingModalOpen, setIsBookingModalOpen] = useState(false);
   const [selectedTimeSlot, setSelectedTimeSlot] = useState<TimeSlot | null>(null);
   const [loading, setLoading] = useState(false);
@@ -30,12 +30,22 @@ function App() {
     loadMyBookings();
   }, []);
 
-  // Load available slots when resource or date changes
+  // Load available dates when resource or date changes
   useEffect(() => {
     if (selectedResource) {
-      loadAvailability();
+      setAvailableSlots([]);
+      setAvailableDates([]);
+      setSelectedDate('');
+      loadAvailableDates(selectedResource);
     }
-  }, [selectedResource, selectedDate]);
+  }, [selectedResource]);
+
+  // Load time slots for selected date when date changes
+  useEffect(() => {
+    if (selectedResource && selectedDate) {
+      loadTimeSlotsForDate();
+    }
+  }, [selectedDate, selectedResource]);
 
   const loadResources = async () => {
     try {
@@ -53,8 +63,42 @@ function App() {
     }
   };
 
-  const loadAvailability = async () => {
-    if (!selectedResource) return;
+  const loadAvailableDates = async (resource: Resource) => {
+    try {
+      const startDate = format(new Date(), 'yyyy-MM-dd\'T\'HH:mm:ssXXX');
+      const endDate = format(addDays(new Date(), 14), 'yyyy-MM-dd\'T\'HH:mm:ssXXX'); // Next 14 days
+      const slots = await getAvailability(resource.id, startDate, endDate);
+      
+      // Group slots by date
+      const slotsByDate = slots.filter(slot => slot.is_available).reduce((acc, slot) => {
+        const date = format(parseISO(slot.start_time), 'yyyy-MM-dd');
+        if (!acc[date]) {
+          acc[date] = [];
+        }
+        acc[date].push(slot);
+        return acc;
+      }, {} as Record<string, TimeSlot[]>);
+
+      // Convert to array and sort by date
+      const availableDatesArray = Object.entries(slotsByDate)
+        .map(([date, slots]) => ({ date, slots }))
+        .sort((a, b) => a.date.localeCompare(b.date));
+
+      setAvailableDates(availableDatesArray);
+
+      // Auto-select the first available date if no date is selected or current selection has no slots
+      if (availableDatesArray.length > 0 && 
+          (!selectedDate || !availableDatesArray.find(d => format(parseISO(d.date + 'T00:00:00'), 'yyyy-MM-dd') === format(parseISO(selectedDate), 'yyyy-MM-dd')))) {
+        const firstAvailableDate = availableDatesArray[0].date + 'T00:00:00';
+        setSelectedDate(format(parseISO(firstAvailableDate), 'yyyy-MM-dd\'T\'HH:mm:ssXXX'));
+      }
+    } catch (error) {
+      console.error('Failed to load available dates:', error);
+    }
+  };
+
+  const loadTimeSlotsForDate = async () => {
+    if (!selectedResource || !selectedDate) return;
     
     try {
       setLoading(true);
@@ -91,7 +135,9 @@ function App() {
     setIsBookingModalOpen(false);
     setSelectedTimeSlot(null);
     loadMyBookings();
-    loadAvailability(); // Refresh availability to show updated capacity
+    if (selectedResource) {
+      loadAvailableDates(selectedResource); // Refresh availability to show updated capacity
+    }
   };
 
   const getResourceIcon = (type: string) => {
@@ -113,6 +159,28 @@ function App() {
 
   const formatDate = (dateString: string) => {
     return format(parseISO(dateString), 'MMM dd, yyyy');
+  };
+
+  const getAvailableDateInfo = (dateString: string) => {
+    const dateObj = parseISO(dateString);
+    const today = startOfDay(new Date());
+    const isToday = format(dateObj, 'yyyy-MM-dd') === format(today, 'yyyy-MM-dd');
+    const isTomorrow = format(dateObj, 'yyyy-MM-dd') === format(addDays(today, 1), 'yyyy-MM-dd');
+    
+    let dayLabel = format(dateObj, 'MMM dd');
+    if (isToday) dayLabel = 'Today';
+    else if (isTomorrow) dayLabel = 'Tomorrow';
+    
+    return {
+      dayLabel,
+      isToday,
+      isTomorrow,
+      slotsCount: availableDates.find(d => d.date === dateString)?.slots.length || 0
+    };
+  };
+
+  const handleDateSelect = (dateString: string) => {
+    setSelectedDate(format(parseISO(dateString + 'T00:00:00'), 'yyyy-MM-dd\'T\'HH:mm:ssXXX'));
   };
 
   return (
@@ -180,32 +248,67 @@ function App() {
               </CardContent>
             </Card>
 
-            {/* Date Selection */}
+            {/* Available Dates Selection */}
             {selectedResource && (
               <Card>
                 <CardHeader>
-                  <CardTitle>Select Date</CardTitle>
-                  <CardDescription>Choose a date to view available time slots</CardDescription>
+                  <CardTitle>Available Dates</CardTitle>
+                  <CardDescription>Select a date to view available time slots</CardDescription>
                 </CardHeader>
                 <CardContent>
-                  <div className="flex items-center space-x-4">
-                    <Calendar className="h-5 w-5 text-gray-400" />
-                    <Input
-                      type="datetime-local"
-                      value={format(parseISO(selectedDate), "yyyy-MM-dd'T'HH:mm")}
-                      onChange={(e) => setSelectedDate(new Date(e.target.value).toISOString())}
-                      className="w-auto"
-                    />
-                    <Badge variant="outline">
-                      {formatDate(selectedDate)}
-                    </Badge>
-                  </div>
+                  {loading && availableDates.length === 0 ? (
+                    <div className="text-center py-4">
+                      <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600 mx-auto"></div>
+                      <p className="mt-2 text-sm text-gray-600">Loading available dates...</p>
+                    </div>
+                  ) : availableDates.length === 0 ? (
+                    <div className="text-center py-8">
+                      <Calendar className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+                      <p className="text-gray-600">No available dates in the next 14 days</p>
+                      <p className="text-sm text-gray-500 mt-1">
+                        Please check back later for new availability
+                      </p>
+                    </div>
+                  ) : (
+                    <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
+                      {availableDates.map(({ date, slots }) => {
+                        const info = getAvailableDateInfo(date);
+                        const isSelected = format(parseISO(date + 'T00:00:00'), 'yyyy-MM-dd') === format(parseISO(selectedDate), 'yyyy-MM-dd');
+                        
+                        return (
+                          <Card
+                            key={date}
+                            className={`cursor-pointer transition-all text-center ${
+                              isSelected
+                                ? 'ring-2 ring-blue-500 bg-blue-50 border-blue-200'
+                                : 'hover:shadow-md hover:border-gray-300'
+                            }`}
+                            onClick={() => handleDateSelect(date)}
+                          >
+                            <CardContent className="p-4">
+                              <div className="space-y-2">
+                                <div className={`font-semibold ${info.isToday ? 'text-blue-600' : 'text-gray-900'}`}>
+                                  {info.dayLabel}
+                                </div>
+                                <div className="text-sm text-gray-600">
+                                  {format(parseISO(date), 'EEE')}
+                                </div>
+                                <Badge variant={slots.length > 0 ? "secondary" : "outline"}>
+                                  {slots.length} slot{slots.length !== 1 ? 's' : ''}
+                                </Badge>
+                              </div>
+                            </CardContent>
+                          </Card>
+                        );
+                      })}
+                    </div>
+                  )}
                 </CardContent>
               </Card>
             )}
 
             {/* Available Time Slots */}
-            {selectedResource && (
+            {selectedResource && selectedDate && (
               <Card>
                 <CardHeader>
                   <CardTitle>
@@ -219,12 +322,15 @@ function App() {
                   {loading ? (
                     <div className="text-center py-8">
                       <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div>
-                      <p className="mt-2 text-gray-600">Loading availability...</p>
+                      <p className="mt-2 text-gray-600">Loading time slots...</p>
                     </div>
                   ) : availableSlots.length === 0 ? (
                     <div className="text-center py-8">
-                      <Clock className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-                      <p className="text-gray-600">No available time slots for this date</p>
+                      <Clock className="h-12 w-12 text-yellow-500 mx-auto mb-4" />
+                      <p className="text-yellow-700 font-medium">No time slots available</p>
+                      <p className="text-sm text-gray-600 mt-1">
+                        Try selecting a different date or check back later for new availability
+                      </p>
                     </div>
                   ) : (
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -273,7 +379,7 @@ function App() {
           </TabsContent>
 
           <TabsContent value="admin">
-            <AdminPanel resources={resources} onTimeSlotCreated={loadAvailability} />
+            <AdminPanel resources={resources} onTimeSlotCreated={() => selectedResource && loadAvailableDates(selectedResource)} />
           </TabsContent>
         </Tabs>
 

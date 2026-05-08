@@ -46,8 +46,8 @@ export async function getAvailability(resourceId: string, startDate: string, end
     end_date: endDate,
   });
   const response = await fetch(`${API_BASE_URL}/availability/${resourceId}?${params}`);
-  const data = await handleResponse<{ time_slots: TimeSlot[] }>(response);
-  return data.time_slots;
+  const data = await handleResponse<{ time_slots: TimeSlot[] | null }>(response);
+  return data.time_slots ?? [];
 }
 
 export async function createTimeSlot(resourceId: string, data: CreateTimeSlotRequest): Promise<TimeSlot> {
@@ -66,6 +66,33 @@ export async function updateTimeSlotAvailability(timeSlotId: string, isAvailable
     body: JSON.stringify({ is_available: isAvailable }),
   });
   return handleResponse<TimeSlot>(response);
+}
+
+export async function deleteTimeSlot(timeSlotId: string): Promise<void> {
+  const response = await fetch(`${API_BASE_URL}/availability/slot/${timeSlotId}`, {
+    method: 'DELETE',
+    headers: { 'Content-Type': 'application/json' },
+  });
+  await handleResponse(response);
+}
+
+export interface BulkTimeSlotRequest {
+  base_start_time: string;
+  duration: number; // in minutes
+  increment: number; // in minutes
+  count: number;
+  capacity: number;
+  price?: number;
+}
+
+export async function createTimeSlotsBulk(resourceId: string, data: BulkTimeSlotRequest): Promise<TimeSlot[]> {
+  const response = await fetch(`${API_BASE_URL}/availability/${resourceId}/bulk`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data),
+  });
+  const result = await handleResponse<{ time_slots: TimeSlot[] }>(response);
+  return result.time_slots;
 }
 
 // Bookings
