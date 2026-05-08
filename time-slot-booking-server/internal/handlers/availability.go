@@ -106,6 +106,63 @@ func (h *AvailabilityHandler) CreateTimeSlot(w http.ResponseWriter, r *http.Requ
 	json.NewEncoder(w).Encode(timeSlot)
 }
 
+// @Summary Create time slots in bulk
+// @Description Create multiple time slots with time increment options (admin only)
+// @Tags availability
+// @Accept json
+// @Produce json
+// @Success 201 {object} models.TimeSlotListResponse
+// @Router /api/availability/{id}/bulk [post]
+func (h *AvailabilityHandler) CreateTimeSlotsBulk(w http.ResponseWriter, r *http.Request) {
+	resourceID := chi.URLParam(r, "id")
+	id, err := uuid.Parse(resourceID)
+	if err != nil {
+		http.Error(w, "Invalid resource ID", http.StatusBadRequest)
+		return
+	}
+
+	var req struct {
+		BaseStartTime time.Time `json:"base_start_time"`
+		Duration      int       `json:"duration"`  // Duration in minutes
+		Increment     int       `json:"increment"` // Increment between slots in minutes
+		Count         int       `json:"count"`     // Number of time slots to create
+		Capacity      int       `json:"capacity"`
+		Price         *float64  `json:"price"`
+	}
+
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "Invalid JSON", http.StatusBadRequest)
+		return
+	}
+
+	// Validate input
+	if req.Count <= 0 || req.Count > 50 {
+		http.Error(w, "Count must be between 1 and 50", http.StatusBadRequest)
+		return
+	}
+	if req.Duration <= 0 {
+		http.Error(w, "Duration must be greater than 0", http.StatusBadRequest)
+		return
+	}
+	if req.Increment <= 0 {
+		http.Error(w, "Increment must be greater than 0", http.StatusBadRequest)
+		return
+	}
+
+	duration := time.Duration(req.Duration) * time.Minute
+	increment := time.Duration(req.Increment) * time.Minute
+
+	timeSlots, err := h.timeSlotService.CreateBulk(r.Context(), id, req.BaseStartTime, duration, increment, req.Count, req.Capacity, req.Price)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusCreated)
+	json.NewEncoder(w).Encode(models.TimeSlotListResponse{TimeSlots: timeSlots})
+}
+
 // @Summary Update time slot availability
 // @Description Update the availability status of a time slot (admin only)
 // @Tags availability
@@ -139,5 +196,31 @@ func (h *AvailabilityHandler) UpdateAvailability(w http.ResponseWriter, r *http.
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(map[string]string{
 		"message": "Availability updated successfully",
+	})
+}
+
+// @Summary Delete time slot
+// @Description Delete a time slot (admin only)
+// @Tags availability
+// @Produce json
+// @Success 200 {object} map[string]string
+// @Router /api/availability/slot/{id} [delete]
+func (h *AvailabilityHandler) DeleteTimeSlot(w http.ResponseWriter, r *http.Request) {
+	timeSlotID := chi.URLParam(r, "id")
+	id, err := uuid.Parse(timeSlotID)
+	if err != nil {
+		http.Error(w, "Invalid time slot ID", http.StatusBadRequest)
+		return
+	}
+
+	err = h.timeSlotService.Delete(r.Context(), id)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]string{
+		"message": "Time slot deleted successfully",
 	})
 }

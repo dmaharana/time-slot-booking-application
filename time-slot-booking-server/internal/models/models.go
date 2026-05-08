@@ -80,3 +80,7 @@ type AvailabilityRequest struct {
 type AvailabilityResponse struct {
 	TimeSlots []TimeSlot `json:"time_slots"`
 }
+
+type TimeSlotListResponse struct {
+	TimeSlots []TimeSlot `json:"time_slots"`
+}

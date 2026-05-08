@@ -2,12 +2,14 @@ package services
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	"time-slot-booking-server/internal/db"
 	"time-slot-booking-server/internal/models"
 
 	"github.com/google/uuid"
+	"github.com/uptrace/bun"
 )
 
 type ResourceService struct {
@@ -173,7 +175,7 @@ func (s *TimeSlotService) GetAvailable(ctx context.Context, resourceID uuid.UUID
 		Order("start_time ASC")
 
 	// Add capacity check
-	query = query.Where("(capacity - COALESCE((SELECT COUNT(*) FROM bookings b WHERE b.time_slot_id = time_slots.id AND b.status IN ('pending', 'confirmed')), 0)) > 0")
+	query = query.Where("(capacity - COALESCE((SELECT COUNT(*) FROM bookings b WHERE b.time_slot_id = time_slot.id AND b.status IN ('pending', 'confirmed')), 0)) > 0")
 
 	err := query.Scan(ctx)
 
@@ -181,6 +183,18 @@ func (s *TimeSlotService) GetAvailable(ctx context.Context, resourceID uuid.UUID
 }
 
 func (s *TimeSlotService) Create(ctx context.Context, resourceID uuid.UUID, startTime, endTime time.Time, capacity int, price *float64) (*models.TimeSlot, error) {
+	if capacity <= 0 {
+		var resource models.Resource
+		err := s.db.NewSelect().
+			Model(&resource).
+			Where("id = ?", resourceID).
+			Scan(ctx)
+		if err != nil {
+			return nil, fmt.Errorf("failed to fetch resource: %w", err)
+		}
+		capacity = resource.Capacity
+	}
+
 	timeSlot := &models.TimeSlot{
 		ResourceID:  resourceID,
 		StartTime:   startTime,
@@ -195,6 +209,62 @@ func (s *TimeSlotService) Create(ctx context.Context, resourceID uuid.UUID, star
 		Exec(ctx)
 
 	return timeSlot, err
+}
+
+func (s *TimeSlotService) CreateBulk(ctx context.Context, resourceID uuid.UUID, baseStartTime time.Time, duration time.Duration, increment time.Duration, count int, capacity int, price *float64) ([]models.TimeSlot, error) {
+	if capacity <= 0 {
+		var resource models.Resource
+		err := s.db.NewSelect().
+			Model(&resource).
+			Where("id = ?", resourceID).
+			Scan(ctx)
+		if err != nil {
+			return nil, fmt.Errorf("failed to fetch resource: %w", err)
+		}
+		capacity = resource.Capacity
+	}
+
+	var timeSlots []models.TimeSlot
+
+	// Use a transaction to ensure data consistency
+	err := s.db.RunInTx(ctx, nil, func(ctx context.Context, tx bun.Tx) error {
+		for i := 0; i < count; i++ {
+			startTime := baseStartTime.Add(time.Duration(i) * increment)
+			endTime := startTime.Add(duration)
+
+			timeSlot := &models.TimeSlot{
+				ResourceID:  resourceID,
+				StartTime:   startTime,
+				EndTime:     endTime,
+				Capacity:    capacity,
+				IsAvailable: true,
+				Price:       price,
+			}
+
+			_, err := tx.NewInsert().
+				Model(timeSlot).
+				Exec(ctx)
+
+			if err != nil {
+				return fmt.Errorf("failed to create time slot %d: %w", i+1, err)
+			}
+
+			timeSlots = append(timeSlots, *timeSlot)
+		}
+
+		return nil
+	})
+
+	return timeSlots, err
+}
+
+func (s *TimeSlotService) Delete(ctx context.Context, id uuid.UUID) error {
+	_, err := s.db.NewDelete().
+		Model((*models.TimeSlot)(nil)).
+		Where("id = ?", id).
+		Exec(ctx)
+
+	return err
 }
 
 func (s *TimeSlotService) UpdateAvailability(ctx context.Context, id uuid.UUID, isAvailable bool) error {
