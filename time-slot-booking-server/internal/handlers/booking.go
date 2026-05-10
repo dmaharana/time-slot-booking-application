@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"time"
+	"time-slot-booking-server/internal/middleware"
 	"time-slot-booking-server/internal/models"
 	"time-slot-booking-server/internal/services"
 
@@ -26,9 +27,16 @@ func NewBookingHandler(bookingService *services.BookingService) *BookingHandler 
 // @Success 200 {array} models.Booking
 // @Router /api/bookings [get]
 func (h *BookingHandler) GetUserBookings(w http.ResponseWriter, r *http.Request) {
-	// TODO: Get user ID from authentication token
-	// For now, using a placeholder UUID
-	userID := uuid.New()
+	user := middleware.GetUser(r.Context())
+	if user == nil {
+		http.Error(w, "Unauthorized", http.StatusUnauthorized)
+		return
+	}
+	userID, err := uuid.Parse(user.ID)
+	if err != nil {
+		http.Error(w, "Invalid user ID", http.StatusUnauthorized)
+		return
+	}
 
 	bookings, err := h.bookingService.GetUserBookings(r.Context(), userID)
 	if err != nil {
@@ -48,15 +56,22 @@ func (h *BookingHandler) GetUserBookings(w http.ResponseWriter, r *http.Request)
 // @Success 201 {object} models.Booking
 // @Router /api/bookings [post]
 func (h *BookingHandler) Create(w http.ResponseWriter, r *http.Request) {
+	user := middleware.GetUser(r.Context())
+	if user == nil {
+		http.Error(w, "Unauthorized", http.StatusUnauthorized)
+		return
+	}
+	userID, err := uuid.Parse(user.ID)
+	if err != nil {
+		http.Error(w, "Invalid user ID", http.StatusUnauthorized)
+		return
+	}
+
 	var req models.CreateBookingRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		http.Error(w, "Invalid JSON", http.StatusBadRequest)
 		return
 	}
-
-	// TODO: Get user ID from authentication token
-	// For now, using a placeholder UUID
-	userID := uuid.New()
 
 	booking, err := h.bookingService.Create(r.Context(), userID, req.ResourceID, req.TimeSlotID, req.Notes)
 	if err != nil {
@@ -106,9 +121,16 @@ func (h *BookingHandler) Cancel(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// TODO: Get user ID from authentication token
-	// For now, using a placeholder UUID
-	userID := uuid.New()
+	user := middleware.GetUser(r.Context())
+	if user == nil {
+		http.Error(w, "Unauthorized", http.StatusUnauthorized)
+		return
+	}
+	userID, err := uuid.Parse(user.ID)
+	if err != nil {
+		http.Error(w, "Invalid user ID", http.StatusUnauthorized)
+		return
+	}
 
 	err = h.bookingService.Cancel(r.Context(), id, userID)
 	if err != nil {

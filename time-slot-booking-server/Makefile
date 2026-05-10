@@ -26,15 +26,24 @@ YELLOW := \033[1;33m
 BLUE := \033[0;34m
 NC := \033[0m # No Color
 
-.PHONY: all build clean test coverage lint fmt vet run dev help setup
+.PHONY: all build build-ui clean test coverage lint fmt vet run dev help setup
 
 # Default target
-all: clean lint test build
+all: clean lint test build-ui build
+
+## build-ui: Build the UI and copy assets to server directory
+build-ui:
+	@echo "$(BLUE)Building UI...$(NC)"
+	cd ../time-slot-booking-ui && pnpm install && pnpm run build
+	@echo "$(BLUE)Copying UI assets...$(NC)"
+	rm -rf internal/handlers/dist
+	cp -r ../time-slot-booking-ui/dist internal/handlers/dist
+	@echo "$(GREEN)✓ UI assets ready$(NC)"
 
 ## build: Build the application with compression
 build: $(BUILD_DIR)/$(APP_NAME)
 
-$(BUILD_DIR)/$(APP_NAME): $(MAIN_FILE) go.mod go.sum
+$(BUILD_DIR)/$(APP_NAME): build-ui $(MAIN_FILE) go.mod go.sum
 	@echo "$(BLUE)Building application with compression flags...$(NC)"
 	@mkdir -p $(BUILD_DIR)
 	$(GOBUILD) -o $(BUILD_DIR)/$(APP_NAME) $(MAIN_FILE)

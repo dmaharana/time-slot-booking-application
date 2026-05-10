@@ -18,6 +18,32 @@ type User struct {
 	UpdatedAt     time.Time `json:"updated_at" db:"updated_at" bun:"updated_at,notnull,default:now()"`
 }
 
+type AppUser struct {
+	bun.BaseModel  `bun:"app_users"`
+	ID             uuid.UUID `json:"id" bun:",pk,default:gen_random_uuid()"`
+	Email          []byte    `json:"email" bun:"email,notnull"`         // Encrypted
+	Name           []byte    `json:"name" bun:"name,notnull"`           // Encrypted
+	Provider       string    `json:"provider" bun:"provider,notnull"`
+	ProviderUserID []byte    `json:"provider_user_id" bun:"provider_user_id,notnull"` // Encrypted
+	ProviderUserHash string  `json:"-" bun:"provider_user_hash,notnull,unique"`       // SHA256 Hash for lookup
+	AccessToken    []byte    `json:"access_token" bun:"access_token"`   // Encrypted
+	RefreshToken   []byte    `json:"refresh_token" bun:"refresh_token"` // Encrypted
+	TokenExpiresAt time.Time `json:"token_expires_at" bun:"token_expires_at"`
+	Role           string    `json:"role" bun:"role,notnull,default:'customer'"`
+	CreatedAt      time.Time `json:"created_at" bun:"created_at,notnull,default:now()"`
+	UpdatedAt      time.Time `json:"updated_at" bun:"updated_at,notnull,default:now()"`
+}
+
+// DecryptedAppUser is used for the application logic
+type DecryptedAppUser struct {
+	ID             uuid.UUID `json:"id"`
+	Email          string    `json:"email"`
+	Name           string    `json:"name"`
+	Provider       string    `json:"provider"`
+	ProviderUserID string    `json:"provider_user_id"`
+	Role           string    `json:"role"`
+}
+
 type Resource struct {
 	bun.BaseModel  `bun:"resources"`
 	ID             uuid.UUID              `json:"id" db:"id" bun:",pk,default:gen_random_uuid()"`
@@ -67,6 +93,7 @@ type CreateResourceRequest struct {
 }
 
 type CreateBookingRequest struct {
+	UserID     uuid.UUID `json:"user_id" validate:"required"`
 	ResourceID uuid.UUID `json:"resource_id" validate:"required"`
 	TimeSlotID uuid.UUID `json:"time_slot_id" validate:"required"`
 	Notes      string    `json:"notes"`

@@ -49,6 +49,7 @@ func (db *DB) CreateTables(ctx context.Context) error {
 	// Create tables using bun migrations
 	migrations := []func(context.Context, *bun.DB) error{
 		createUsersTable,
+		createAppUsersTable,
 		createResourcesTable,
 		createTimeSlotsTable,
 		createBookingsTable,
@@ -71,6 +72,26 @@ func createUsersTable(ctx context.Context, db *bun.DB) error {
 			name VARCHAR NOT NULL,
 			role VARCHAR NOT NULL DEFAULT 'customer',
 			phone VARCHAR,
+			created_at TIMESTAMP DEFAULT NOW(),
+			updated_at TIMESTAMP DEFAULT NOW()
+		)
+	`)
+	return err
+}
+
+func createAppUsersTable(ctx context.Context, db *bun.DB) error {
+	_, err := db.ExecContext(ctx, `
+		CREATE TABLE IF NOT EXISTS app_users (
+			id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+			email BYTEA NOT NULL,
+			name BYTEA NOT NULL,
+			provider VARCHAR NOT NULL,
+			provider_user_id BYTEA NOT NULL,
+			provider_user_hash VARCHAR NOT NULL UNIQUE,
+			access_token BYTEA,
+			refresh_token BYTEA,
+			token_expires_at TIMESTAMP,
+			role VARCHAR NOT NULL DEFAULT 'customer',
 			created_at TIMESTAMP DEFAULT NOW(),
 			updated_at TIMESTAMP DEFAULT NOW()
 		)
@@ -116,7 +137,7 @@ func createBookingsTable(ctx context.Context, db *bun.DB) error {
 	_, err := db.ExecContext(ctx, `
 		CREATE TABLE IF NOT EXISTS bookings (
 			id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-			user_id UUID REFERENCES users(id) ON DELETE CASCADE,
+			user_id UUID REFERENCES app_users(id) ON DELETE CASCADE,
 			resource_id UUID REFERENCES resources(id) ON DELETE CASCADE,
 			time_slot_id UUID REFERENCES time_slots(id) ON DELETE CASCADE,
 			status VARCHAR DEFAULT 'confirmed',

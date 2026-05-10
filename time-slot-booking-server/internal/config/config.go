@@ -8,11 +8,18 @@ import (
 )
 
 type Config struct {
-	Port        string
-	DatabaseURL string
-	Environment string
-	JWTSecret   string
-	LogLevel    string
+	Port                    string
+	DatabaseURL             string
+	Environment             string
+	JWTSecret               string
+	LogLevel                string
+	EncryptionKey           string
+	GithubClientID          string
+	GithubClientSecret      string
+	AtlassianClientID       string
+	AtlassianClientSecret   string
+	AppCallbackURL          string
+	RootAdmins              string
 }
 
 var AppConfig *Config
@@ -24,11 +31,18 @@ func Load() {
 	}
 
 	AppConfig = &Config{
-		Port:        getEnv("PORT", ":8080"),
-		DatabaseURL: getEnv("DATABASE_URL", "postgresql://user:password@localhost:5432/timeslot_booking"),
-		Environment: getEnv("ENVIRONMENT", "development"),
-		JWTSecret:   getEnv("JWT_SECRET", "your-jwt-secret-key"),
-		LogLevel:    getEnv("LOG_LEVEL", "info"),
+		Port:                  getEnv("PORT", ":8080"),
+		DatabaseURL:           getEnv("DATABASE_URL", "postgresql://user:password@localhost:5432/timeslot_booking"),
+		Environment:           getEnv("ENVIRONMENT", "development"),
+		JWTSecret:             getEnv("JWT_SECRET", "your-jwt-secret-key"),
+		LogLevel:              getEnv("LOG_LEVEL", "info"),
+		EncryptionKey:         getEnv("ENCRYPTION_KEY", "0123456789abcdef0123456789abcdef"), // 32 bytes for AES-256
+		GithubClientID:        getEnv("GITHUB_APP_CLIENT_ID", ""),
+		GithubClientSecret:    getEnv("GITHUB_APP_SECRET", ""),
+		AtlassianClientID:     getEnv("ATLASSIAN_APP_CLIENT_ID", ""),
+		AtlassianClientSecret: getEnv("ATLASSIAN_APP_SECRET", ""),
+		AppCallbackURL:        getEnv("APP_CALLBACK_URL", "http://localhost:8080/v1/api/callback"),
+		RootAdmins:            getEnv("ROOT_ADMINS", ""),
 	}
 }
 

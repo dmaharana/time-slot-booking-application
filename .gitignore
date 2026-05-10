@@ -1,7 +1,1 @@
-tmp/*
-.env
-bin/*
-
-time-slot-booking
-server
 time-slot-booking-server/internal/handlers/dist/*
